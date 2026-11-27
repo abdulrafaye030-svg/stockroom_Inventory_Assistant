@@ -3,3 +3,4 @@ dist/
 __pycache__/
 *.py[cod]
 inventory_demo_v3.db
+.env

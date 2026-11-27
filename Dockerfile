@@ -10,7 +10,7 @@ RUN npm run build
 # Stage 2: run the Python server, which serves dist/ and the /api endpoints
 FROM python:3.12-slim
 WORKDIR /app
-COPY server.py chatbot.py database.py ./
+COPY server.py chatbot.py database.py auth.py envfile.py ./
 COPY --from=frontend /app/dist ./dist
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8000

@@ -44,6 +44,8 @@ In development, Vite serves the React app and forwards `/api` requests to the Py
 | `package.json` / `package-lock.json` | Frontend scripts and pinned JavaScript dependencies. |
 | `server.py` | Local HTTP API, request validation, and production static-file server. |
 | `auth.py` | Sign-in credential check and signed session cookies. |
+| `envfile.py` | Loads settings from a local `.env` file. |
+| `.env.example` | Template for `.env` (copy it and fill in your values). |
 | `src/LoginPage.jsx` | Sign-in form shown until the user is signed in. |
 | `chatbot.py` | Supported question phrases, product/customer name matching, and terminal chatbot. |
 | `database.py` | SQLite/MongoDB connections, inventory queries, balance calculations, and data errors. |
@@ -95,20 +97,30 @@ Vite writes the production frontend to `dist/`. The Python service detects that 
 
 The app opens on a sign-in form. Product, customer and chat data are only returned to a signed-in session.
 
-- **Default account:** username `rafay`, password `rafay1234`. This is used only when no credentials are configured.
-- **Your own account:** set `STOCKROOM_USERNAME` and `STOCKROOM_PASSWORD` before starting the server (or in your host's environment variables).
-- **Signing key:** set `STOCKROOM_SECRET` to a long random string in production. Without it the key is derived from the password, so changing the password signs everyone out.
+The account is set with three settings. Nothing is built in: if the username or password is missing, nobody can sign in.
 
-Sessions last 12 hours and are kept in an HttpOnly cookie (marked `Secure` on Vercel or behind HTTPS). There is one account; the username is not case-sensitive, the password is.
+| Setting | Purpose |
+| --- | --- |
+| `STOCKROOM_USERNAME` | Username for the one account (not case-sensitive). |
+| `STOCKROOM_PASSWORD` | Its password (case-sensitive). |
+| `STOCKROOM_SECRET` | Long random string that signs session cookies. Without it the key is derived from the password, so changing the password signs everyone out. |
+
+**Locally**, put them in a `.env` file in the project folder. The server reads it at startup. `.env` is ignored by git and Docker, so it is never committed.
 
 ```powershell
-$env:STOCKROOM_USERNAME = 'owner'
-$env:STOCKROOM_PASSWORD = 'choose-a-strong-password'
-$env:STOCKROOM_SECRET = 'a-long-random-string'
-py server.py
+Copy-Item .env.example .env
+notepad .env
 ```
 
-> **Before deploying publicly, set these variables.** Otherwise anyone can sign in with the default account above.
+```ini
+STOCKROOM_USERNAME=your-username
+STOCKROOM_PASSWORD=your-password
+STOCKROOM_SECRET=paste-output-of: py -c "import secrets; print(secrets.token_hex(32))"
+```
+
+**On Vercel or another host**, add the same names in the host's environment variable settings. Values set there take priority over `.env`.
+
+Sessions last 12 hours and are kept in an HttpOnly cookie (marked `Secure` on Vercel or behind HTTPS).
 
 ## Deploy online
 

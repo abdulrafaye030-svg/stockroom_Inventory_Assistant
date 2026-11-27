@@ -6,3 +6,4 @@ __pycache__
 inventory_class_demo.db
 tests
 inventory_demo_v3.db
+.env

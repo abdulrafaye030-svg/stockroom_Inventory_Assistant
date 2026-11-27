@@ -7,9 +7,13 @@ from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-import auth
-from chatbot import get_answer, match_question, small_talk
-from database import clean, customer_balances, describe_error, mongo_rows, open_shop
+from envfile import load_env_file
+
+load_env_file()  # Read .env before anything looks at os.environ.
+
+import auth  # noqa: E402
+from chatbot import get_answer, match_question, small_talk  # noqa: E402
+from database import clean, customer_balances, describe_error, mongo_rows, open_shop  # noqa: E402
 
 
 ROOT = Path(__file__).resolve().parent
@@ -181,6 +185,12 @@ class StockroomHandler(SimpleHTTPRequestHandler):
         if not isinstance(username, str) or not isinstance(password, str) or not username.strip() or not password:
             self._api_error("Enter your username and password.", 400)
             return
+        if not auth.is_configured():
+            self._api_error(
+                "Sign-in is not set up. Set STOCKROOM_USERNAME and STOCKROOM_PASSWORD in .env or the host's settings.",
+                503,
+            )
+            return
         if not auth.check_credentials(username, password):
             self._api_error("Incorrect username or password.", 401)
             return
@@ -245,6 +255,9 @@ def main():
             server = HTTPServer((args.host, args.port), StockroomHandler)
             server.shop = shop
             print(f"Stockroom API listening on http://{args.host}:{args.port}")
+            if not auth.is_configured():
+                print("Warning: STOCKROOM_USERNAME / STOCKROOM_PASSWORD are not set, so nobody can sign in. "
+                      "Copy .env.example to .env and fill it in.", file=sys.stderr)
             if (BUILD_DIR / "index.html").is_file():
                 print("Serving the built React app.")
             else:
