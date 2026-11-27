@@ -91,6 +91,12 @@ Vite writes the production frontend to `dist/`. The Python service detects that 
 
 ## Deploy online
 
+### Vercel
+
+Import the GitHub repository at [vercel.com/new](https://vercel.com/new) and deploy with the default settings (`vercel.json` selects Vite and `dist/`). Vercel serves the React build as static files and runs `api/health.py`, `api/products.py` and `api/chat.py` as Python functions; each reuses `server.py`. On Vercel the SQLite demo database is created in the temporary folder, so it is reset whenever a function restarts.
+
+### Docker (Render and other hosts)
+
 The included `Dockerfile` builds the React app and runs `server.py` on the port the host provides (`PORT`, default `8000`). To deploy on [Render](https://render.com):
 
 1. Create a **Web Service** and connect this GitHub repository.

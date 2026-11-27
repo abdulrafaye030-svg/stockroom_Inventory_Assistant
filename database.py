@@ -2,6 +2,7 @@
 import os
 import sqlite3
 import sys
+import tempfile
 from contextlib import contextmanager
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -11,8 +12,15 @@ def clean(text):
     return " ".join(text.lower().strip().rstrip("?!.").split())
 
 
+def demo_path():
+    """The SQLite demo file. Vercel only allows writing to its temp folder."""
+    if os.environ.get("VERCEL"):
+        return Path(tempfile.gettempdir()) / "inventory_class_demo.db"
+    return Path(__file__).with_name("inventory_class_demo.db")
+
+
 def open_demo():
-    path = Path(__file__).with_name("inventory_class_demo.db")
+    path = demo_path()
     db = sqlite3.connect(path)
     db.row_factory = sqlite3.Row
     db.create_function("clean_name", 1, clean)
@@ -167,7 +175,7 @@ def open_shop():
             message = describe_error(error, mongo)
             if isinstance(error, sqlite3.Error):
                 # Startup errors print only to the local terminal, so the path is safe and useful here.
-                message += f" File: {Path(__file__).with_name('inventory_class_demo.db')}"
+                message += f" File: {demo_path()}"
             raise SystemExit(message) from error
         print("Inventory Bot |", "MongoDB" if mongo else "SQLite demo")
         yield db, mongo

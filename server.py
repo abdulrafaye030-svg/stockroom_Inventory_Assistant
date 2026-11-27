@@ -65,6 +65,10 @@ class StockroomHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(BUILD_DIR), **kwargs)
 
+    @property
+    def shop(self):
+        return self.server.shop
+
     def _send_json(self, status, payload):
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
@@ -81,13 +85,13 @@ class StockroomHandler(SimpleHTTPRequestHandler):
         request = urlparse(self.path)
         if request.path.startswith("/api/"):
             if request.path == "/api/health":
-                source = "MongoDB" if self.server.shop[1] else "SQLite demo"
+                source = "MongoDB" if self.shop[1] else "SQLite demo"
                 self._send_json(200, {"ok": True, "source": source})
             elif request.path == "/api/products":
                 try:
-                    self._send_json(200, {"products": inventory_products(self.server.shop)})
+                    self._send_json(200, {"products": inventory_products(self.shop)})
                 except Exception as error:
-                    self._api_error(describe_error(error, self.server.shop[1]))
+                    self._api_error(describe_error(error, self.shop[1]))
             else:
                 self._api_error("API endpoint not found.", 404)
             return
@@ -145,11 +149,33 @@ class StockroomHandler(SimpleHTTPRequestHandler):
             return
 
         try:
-            answer, next_question = chat_reply(self.server.shop, text, waiting_for)
+            answer, next_question = chat_reply(self.shop, text, waiting_for)
         except Exception as error:
-            self._api_error(describe_error(error, self.server.shop[1]))
+            self._api_error(describe_error(error, self.shop[1]))
             return
         self._send_json(200, {"answer": answer, "waitingFor": next_question})
+
+
+class VercelHandler(StockroomHandler):
+    """Vercel serverless entry point (see api/): opens the database for each request."""
+
+    def _with_shop(self, method):
+        try:
+            with open_shop() as shop:
+                self._shop = shop
+                method()
+        except SystemExit as error:
+            self._api_error(str(error) or "The inventory database could not be opened.")
+
+    @property
+    def shop(self):
+        return self._shop
+
+    def do_GET(self):
+        self._with_shop(super().do_GET)
+
+    def do_POST(self):
+        self._with_shop(super().do_POST)
 
 
 def main():
