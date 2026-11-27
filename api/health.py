@@ -4,4 +4,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from server import VercelHandler as handler  # noqa: E402,F401  (Vercel looks for "handler")
+from server import VercelHandler  # noqa: E402
+
+
+class handler(VercelHandler):
+    """Vercel finds functions by a top-level class named "handler", so it is defined here."""
