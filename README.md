@@ -13,7 +13,7 @@ Stockroom is a local inventory dashboard with a conversational assistant. The in
 - Offers a refresh action to reload data from the connected database.
 - Provides a responsive layout for desktop and smaller screens.
 
-The **In stock** count includes every product with a positive quantity; **Low stock** is a subset of that count. A product is low when its positive stock is at or below its reorder point.
+The **In stock** count includes every product with a positive quantity; **Low stock** is a subset of that count. A product is low when its positive stock is at or below its reorder point. A quantity of zero or below counts as out of stock.
 
 ## How it works
 
@@ -33,6 +33,9 @@ In development, Vite serves the React app and forwards `/api` requests to the Py
 | File | Purpose |
 | --- | --- |
 | `src/App.jsx` | Dashboard, product filters/search, inventory metrics, navigation, and chat state/API calls. |
+| `src/inventory.js` | Product filtering, metric counts, stock-bar widths, message IDs, and API requests used by the app. |
+| `src/inventory.test.js` | Vitest tests for `src/inventory.js`. |
+| `tests/test_fixes.py` | Python tests for the chat, stock status, and error-message logic. |
 | `src/Icon.jsx` | Reusable inline SVG icons, including the Stockroom mark. |
 | `src/main.jsx` | React entry point; mounts the app and loads its styles. |
 | `src/styles.css` | Dashboard, chat, responsive layout, and visual design. |
@@ -56,7 +59,7 @@ SQLite support is included with Python. MongoDB mode additionally requires PyMon
 Open two PowerShell terminals in the project directory:
 
 ```powershell
-Set-Location 'D:\Downloads\InventoryClassBot(ui)'
+Set-Location 'C:\path\to\stockroom_Inventory_Assistant'
 ```
 
 In **Terminal 1**, start the Python API:
@@ -85,6 +88,17 @@ py server.py
 ```
 
 Vite writes the production frontend to `dist/`. The Python service detects that build and serves the complete app at <http://127.0.0.1:8000>.
+
+## Run the tests
+
+From the project directory:
+
+```powershell
+npm test                         # frontend tests (Vitest)
+py -m unittest discover tests    # Python tests
+```
+
+The Python tests use an in-memory copy of the demo database, so they never change `inventory_class_demo.db`.
 
 ## Use MongoDB instead of the demo database
 

@@ -6,7 +6,7 @@ from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-from chatbot import get_answer, help_text, match_question
+from chatbot import get_answer, match_question, small_talk
 from database import clean, describe_error, mongo_rows, open_shop
 
 
@@ -30,7 +30,7 @@ def inventory_products(shop):
             "unit": row["unit"],
             "reorder_level": row["reorder_level"],
             "status": (
-                "out_of_stock" if row["stock"] == 0 else
+                "out_of_stock" if row["stock"] <= 0 else
                 "low_stock" if row["stock"] <= row["reorder_level"] else
                 "in_stock"
             ),
@@ -41,11 +41,12 @@ def inventory_products(shop):
 
 def chat_reply(shop, text, waiting_for=None):
     message = clean(text)
-    if message in ("help", "hi", "hello", "salam", "assalamualaikum", "aslamualikum"):
-        return help_text, None
-    if message in ("bye", "quit", "exit"):
-        return "Goodbye! Ask another question whenever you need an update.", None
+    if reply := small_talk(message):
+        return reply, None
     if waiting_for:
+        if not message:
+            prompt = "Which product? Type its name." if waiting_for == "product" else "Which customer? Type their name."
+            return prompt, waiting_for
         return get_answer(shop, waiting_for, message), None
 
     intent, name = match_question(message)

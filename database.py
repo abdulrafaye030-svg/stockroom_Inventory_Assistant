@@ -44,7 +44,7 @@ filters = {"products": {}, "customers": {}, "invoices": {}}
 # Stock conditions only use fixed SQL. A name typed by the user is a parameter.
 stock_filters = {
     "available": "stock > 0",
-    "empty": "stock = 0",
+    "empty": "stock <= 0",
     "low": "stock > 0 AND stock <= reorder_level",
     "product": "clean_name(name) = ?",
 }
@@ -67,7 +67,7 @@ def get_products(db, mongo, intent, name):
     if intent == "available":
         return [p for p in products if p["stock"] > 0]
     if intent == "empty":
-        return [p for p in products if p["stock"] == 0]
+        return [p for p in products if p["stock"] <= 0]
     return [p for p in products if 0 < p["stock"] <= p["reorder_level"]]
 
 
@@ -130,7 +130,7 @@ def get_answer(shop, intent, name):
 
 def describe_error(error, mongo):
     if isinstance(error, sqlite3.Error):
-        return f"SQLite: {error}. File: {Path(__file__).with_name('inventory_class_demo.db')}"
+        return f"SQLite: {error}. Check the demo database file."
     if isinstance(error, KeyError):
         key = error.args[0]
         if key in ("MONGODB_URI", "MONGODB_DB"):
@@ -164,7 +164,11 @@ def open_shop():
         except ImportError:
             raise SystemExit("MongoDB mode needs the driver. Run: py -m pip install pymongo")
         except errors as error:
-            raise SystemExit(describe_error(error, mongo)) from error
+            message = describe_error(error, mongo)
+            if isinstance(error, sqlite3.Error):
+                # Startup errors print only to the local terminal, so the path is safe and useful here.
+                message += f" File: {Path(__file__).with_name('inventory_class_demo.db')}"
+            raise SystemExit(message) from error
         print("Inventory Bot |", "MongoDB" if mongo else "SQLite demo")
         yield db, mongo
     except (KeyboardInterrupt, EOFError):

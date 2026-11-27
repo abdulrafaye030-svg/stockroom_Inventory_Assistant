@@ -23,6 +23,24 @@ help_text = """Try: available products | out of stock products | low stock produ
 Or type check product / check balance and enter a name when asked.
 Type help for examples or bye to exit."""
 
+# Shared by the terminal bot and server.py so both recognise the same words.
+greetings = {"hi", "hello", "salam", "assalamualaikum", "aslamualikum"}
+exit_words = {"bye", "quit", "exit"}
+goodbye_text = "Goodbye! Ask another question whenever you need an update."
+
+
+def small_talk(message):
+    """Return the shared reply for help, greetings and goodbyes, or None for other messages."""
+    if message in ("hi", "hello"):
+        return "Hello!\n" + help_text
+    if message in greetings:
+        return "Wa alaikum assalam!\n" + help_text
+    if message == "help":
+        return help_text
+    if message in exit_words:
+        return goodbye_text
+    return None
+
 
 # Each phrase points to the kind of answer the user wants.
 questions = {"check product": "product", "check balance": "balance"}
@@ -59,11 +77,9 @@ def match_question(message):
 if __name__ == "__main__":
     with open_shop() as shop:
         print(help_text)
-        while (msg := clean(input("\nYou: "))) not in ("bye", "quit", "exit"):
-            if msg in ("hi", "hello", "salam", "help", "assalamualaikum", "aslamualikum"):
-                if msg != "help":
-                    print("Bot: Wa alaikum assalam!")
-                print(help_text)
+        while (msg := clean(input("\nYou: "))) not in exit_words:
+            if reply := small_talk(msg):
+                print("Bot:", reply)
                 continue
             intent, name = match_question(msg)
             if intent is None:
@@ -76,4 +92,4 @@ if __name__ == "__main__":
                     print("Bot: Please enter a name.")
                     continue
             print("Bot:", get_answer(shop, intent, name))
-        print("Bot: Goodbye!")
+        print("Bot:", goodbye_text)

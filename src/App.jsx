@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Icon from "./Icon.jsx";
+import { filterProducts, messageId, requestJson, stockProportion, summarizeInventory } from "./inventory.js";
 
 const promptOptions = [
   { title: "Check stock levels", message: "available products" },
@@ -13,15 +14,6 @@ const filters = [
   { id: "low_stock", label: "Low stock" },
   { id: "out_of_stock", label: "Out of stock" },
 ];
-
-async function requestJson(url, options) {
-  const response = await fetch(url, options);
-  const payload = await response.json();
-  if (!response.ok) {
-    throw new Error(payload.error || `Request failed (${response.status}).`);
-  }
-  return payload;
-}
 
 function ProductStatus({ status }) {
   const labels = {
@@ -101,13 +93,10 @@ function MetricCard({ icon, label, value, note, tone, onClick }) {
 }
 
 function InventoryTable({ products, loading, filter, setFilter, search, setSearch, onAsk, attentionCount }) {
-  const visibleProducts = useMemo(() => {
-    const term = search.trim().toLocaleLowerCase();
-    return products.filter((product) => {
-      const matchesFilter = filter === "all" || product.status === filter;
-      return matchesFilter && (!term || product.name.toLocaleLowerCase().includes(term));
-    });
-  }, [products, filter, search]);
+  const visibleProducts = useMemo(
+    () => filterProducts(products, filter, search),
+    [products, filter, search],
+  );
 
   return (
     <section id="inventory" className="panel inventory-panel" aria-labelledby="inventory-title">
@@ -158,9 +147,7 @@ function InventoryTable({ products, loading, filter, setFilter, search, setSearc
           </thead>
           <tbody>
             {visibleProducts.map((product) => {
-              const proportion = product.reorder_level > 0
-                ? Math.min(100, (product.stock / product.reorder_level) * 100)
-                : (product.stock > 0 ? 100 : 0);
+              const proportion = stockProportion(product);
               return (
                 <tr key={product.name}>
                   <td>
@@ -317,17 +304,7 @@ export default function App() {
   const messagesEndRef = useRef(null);
   const assistantRef = useRef(null);
   const overviewRef = useRef(null);
-  const overview = useMemo(
-    () => products.reduce((summary, product) => {
-      summary.total_products += 1;
-      if (product.stock > 0) summary.in_stock += 1;
-      if (product.status === "low_stock") summary.low_stock += 1;
-      if (product.status === "out_of_stock") summary.out_of_stock += 1;
-      summary.needs_attention = summary.low_stock + summary.out_of_stock;
-      return summary;
-    }, { total_products: 0, in_stock: 0, low_stock: 0, out_of_stock: 0, needs_attention: 0 }),
-    [products],
-  );
+  const overview = useMemo(() => summarizeInventory(products), [products]);
   const hasInventoryData = Boolean(source);
 
   async function refreshData() {
@@ -368,7 +345,7 @@ export default function App() {
     setDraft("");
     setSending(true);
     setError("");
-    setMessages((current) => [...current, { id: crypto.randomUUID(), role: "user", text: message }]);
+    setMessages((current) => [...current, { id: messageId(), role: "user", text: message }]);
     try {
       const response = await requestJson("/api/chat", {
         method: "POST",
@@ -377,7 +354,7 @@ export default function App() {
       });
       setMessages((current) => [
         ...current,
-        { id: crypto.randomUUID(), role: "assistant", text: response.answer },
+        { id: messageId(), role: "assistant", text: response.answer },
       ]);
       setWaitingFor(response.waitingFor);
     } catch (requestError) {
@@ -385,7 +362,7 @@ export default function App() {
       setMessages((current) => [
         ...current,
         {
-          id: crypto.randomUUID(),
+          id: messageId(),
           role: "assistant",
           text: `I couldn’t complete that request. ${requestError.message}`,
         },
