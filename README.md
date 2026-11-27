@@ -89,6 +89,16 @@ py server.py
 
 Vite writes the production frontend to `dist/`. The Python service detects that build and serves the complete app at <http://127.0.0.1:8000>.
 
+## Deploy online
+
+The included `Dockerfile` builds the React app and runs `server.py` on the port the host provides (`PORT`, default `8000`). To deploy on [Render](https://render.com):
+
+1. Create a **Web Service** and connect this GitHub repository.
+2. Choose the **Docker** language/runtime and the **Free** instance type.
+3. Deploy. Render builds the image and gives the app a public `onrender.com` URL.
+
+The SQLite demo database is recreated with sample data each time the service starts. To use MongoDB instead, add `MONGODB_URI` and `MONGODB_DB` as environment variables, add `pymongo` to the image, and start the server with `--mongo`.
+
 ## Run the tests
 
 From the project directory:
