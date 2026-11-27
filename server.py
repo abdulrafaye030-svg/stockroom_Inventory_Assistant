@@ -7,7 +7,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 from chatbot import get_answer, match_question, small_talk
-from database import clean, describe_error, mongo_rows, open_shop
+from database import clean, customer_balances, describe_error, mongo_rows, open_shop
 
 
 ROOT = Path(__file__).resolve().parent
@@ -87,6 +87,11 @@ class StockroomHandler(SimpleHTTPRequestHandler):
             if request.path == "/api/health":
                 source = "MongoDB" if self.shop[1] else "SQLite demo"
                 self._send_json(200, {"ok": True, "source": source})
+            elif request.path == "/api/customers":
+                try:
+                    self._send_json(200, {"customers": customer_balances(self.shop)})
+                except Exception as error:
+                    self._api_error(describe_error(error, self.shop[1]))
             elif request.path == "/api/products":
                 try:
                     self._send_json(200, {"products": inventory_products(self.shop)})

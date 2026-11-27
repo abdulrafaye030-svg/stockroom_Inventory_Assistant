@@ -61,6 +61,42 @@ const paths = {
     </>
   ),
   check: <path d="m5 12 4 4L19 6" />,
+  download: (
+    <>
+      <path d="M12 4v11m-5-5 5 5 5-5" />
+      <path d="M5 20h14" />
+    </>
+  ),
+  calendar: (
+    <>
+      <rect x="3.5" y="5" width="17" height="15.5" rx="2" />
+      <path d="M3.5 10h17M8 3v4m8-4v4" />
+    </>
+  ),
+  wallet: (
+    <>
+      <path d="M19 7V5.5A1.5 1.5 0 0 0 17.5 4h-12A2.5 2.5 0 0 0 3 6.5v11A2.5 2.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15" />
+      <path d="M3 6.5A2.5 2.5 0 0 0 5.5 9H20v6h-4a3 3 0 0 1 0-6" />
+    </>
+  ),
+  layers: (
+    <>
+      <path d="m12 3 9 5-9 5-9-5 9-5Z" />
+      <path d="m3 13 9 5 9-5" />
+    </>
+  ),
+  xcircle: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="m9 9 6 6m0-6-6 6" />
+    </>
+  ),
+  database: (
+    <>
+      <ellipse cx="12" cy="5.5" rx="7.5" ry="2.5" />
+      <path d="M4.5 5.5v13c0 1.4 3.4 2.5 7.5 2.5s7.5-1.1 7.5-2.5v-13M4.5 12c0 1.4 3.4 2.5 7.5 2.5s7.5-1.1 7.5-2.5" />
+    </>
+  ),
 };
 
 export default function Icon({ name, size = 18, className = "" }) {

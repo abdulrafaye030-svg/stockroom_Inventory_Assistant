@@ -80,8 +80,21 @@ class NegativeStockTests(unittest.TestCase):
         self.assertEqual(low, [])
 
 
+class CustomerBalanceTests(unittest.TestCase):
+    def setUp(self):
+        self.shop = make_shop()
+        self.addCleanup(self.shop[0].close)
+
+    def test_balances_match_chat_and_sort_largest_due_first(self):
+        rows = database.customer_balances(self.shop)
+        dues = {r["name"]: r["due"] for r in rows}
+        self.assertEqual((dues["Ali"], dues["Ahmed"], dues["Bilal"]), (1500.0, 800.0, 0.0))
+        self.assertEqual([r["due"] for r in rows], sorted((r["due"] for r in rows), reverse=True))
+        self.assertIn("remaining Rs. 1,500.00", chat_reply(self.shop, "how much does ali owe")[0])
+
+
 class ErrorMessageTests(unittest.TestCase):
-    db_path = str(database.Path(database.__file__).with_name("inventory_class_demo.db"))
+    db_path = str(database.demo_path())
 
     def test_api_error_message_hides_file_path(self):
         message = database.describe_error(sqlite3.OperationalError("no such table: products"), False)

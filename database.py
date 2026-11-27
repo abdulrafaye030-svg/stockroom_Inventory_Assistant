@@ -12,11 +12,15 @@ def clean(text):
     return " ".join(text.lower().strip().rstrip("?!.").split())
 
 
+# Renamed when the sample data changes, so an older demo file is not reused.
+DEMO_FILE = "inventory_demo_v3.db"
+
+
 def demo_path():
     """The SQLite demo file. Vercel only allows writing to its temp folder."""
     if os.environ.get("VERCEL"):
-        return Path(tempfile.gettempdir()) / "inventory_class_demo.db"
-    return Path(__file__).with_name("inventory_class_demo.db")
+        return Path(tempfile.gettempdir()) / DEMO_FILE
+    return Path(__file__).with_name(DEMO_FILE)
 
 
 def open_demo():
@@ -30,10 +34,21 @@ def open_demo():
             CREATE TABLE products (name TEXT PRIMARY KEY, stock INTEGER, unit TEXT, reorder_level INTEGER);
             CREATE TABLE customers (id INTEGER PRIMARY KEY, name TEXT);
             CREATE TABLE invoices (customer_id INTEGER, total INTEGER, paid INTEGER);
-            INSERT INTO products VALUES ('Rice',20,'bags',5), ('Sugar',3,'bags',5),
-                                        ('Cooking Oil',0,'bottles',4), ('Tea',4,'boxes',4);
-            INSERT INTO customers VALUES (1,'Ali'), (2,'Sara'), (3,'Bilal');
-            INSERT INTO invoices VALUES (1,3000,2500), (1,2000,1000), (2,1000,200), (3,700,700);
+            INSERT INTO products VALUES
+                ('Rice', 20, 'bags', 5), ('Sugar', 3, 'bags', 5), ('Cooking Oil', 0, 'bottles', 4),
+                ('Tea', 4, 'boxes', 4), ('Flour', 18, 'bags', 6), ('Ghee', 7, 'tins', 4),
+                ('Daal Chana', 9, 'kg', 5), ('Daal Masoor', 2, 'kg', 5), ('Chickpeas', 8, 'kg', 4),
+                ('Red Chilli Powder', 6, 'packets', 6), ('Turmeric', 11, 'packets', 5),
+                ('Milk Powder', 0, 'tins', 3), ('Eggs', 0, 'trays', 2), ('Biscuits', 40, 'packs', 12),
+                ('Soap', 15, 'bars', 10), ('Detergent', 3, 'packs', 6), ('Matchboxes', 60, 'boxes', 20),
+                ('Bottled Water', 24, 'bottles', 12);
+            INSERT INTO customers VALUES
+                (1, 'Ali'), (2, 'Ahmed'), (3, 'Bilal'), (4, 'Hassan'), (5, 'Usman'),
+                (6, 'Omar'), (7, 'Hamza'), (8, 'Faisal'), (9, 'Imran'), (10, 'Kamran');
+            INSERT INTO invoices VALUES
+                (1, 3000, 2500), (1, 2000, 1000), (2, 1000, 200), (3, 700, 700),
+                (4, 4200, 1200), (4, 1800, 1800), (5, 2600, 2600), (6, 3500, 1000), (6, 900, 600),
+                (7, 6000, 3800), (8, 1500, 1500), (9, 7500, 2500), (10, 1200, 450);
             COMMIT;
         """)
     return db
@@ -93,7 +108,8 @@ def stock_answer(products, intent):
     return "\n".join(lines)
 
 
-def balance_answer(customers, invoices, name):
+def account_totals(customers, invoices):
+    """Billed and paid amounts per customer ID, after checking each invoice."""
     totals = {str(c["id"]): [Decimal(0), Decimal(0)] for c in customers}
     for invoice in invoices:
         billed = Decimal(str(invoice["total"]))
@@ -106,6 +122,31 @@ def balance_answer(customers, invoices, name):
         account = totals[customer_id]
         account[0] += billed
         account[1] += paid
+    return totals
+
+
+def load_accounts(shop):
+    db, mongo = shop
+    if mongo:
+        return mongo_rows(db, "customers"), mongo_rows(db, "invoices")
+    customers = db.execute("SELECT id, name FROM customers").fetchall()
+    invoices = db.execute("SELECT customer_id, total, paid FROM invoices").fetchall()
+    return customers, invoices
+
+
+def customer_balances(shop):
+    """Each customer's billed, paid and remaining amounts, for the dashboard."""
+    customers, invoices = load_accounts(shop)
+    totals = account_totals(customers, invoices)
+    rows = []
+    for c in customers:
+        billed, paid = totals[str(c["id"])]
+        rows.append({"name": c["name"], "billed": float(billed), "paid": float(paid), "due": float(billed - paid)})
+    return sorted(rows, key=lambda row: (-row["due"], row["name"]))
+
+
+def balance_answer(customers, invoices, name):
+    totals = account_totals(customers, invoices)
     if name:
         customers = [c for c in customers if clean(c["name"]) == name]
         if not customers:
@@ -127,12 +168,7 @@ def get_answer(shop, intent, name):
     db, mongo = shop
     if intent in ("available", "low", "empty", "product"):
         return stock_answer(get_products(db, mongo, intent, name), intent)
-    if mongo:
-        customers = mongo_rows(db, "customers")
-        invoices = mongo_rows(db, "invoices")
-    else:
-        customers = db.execute("SELECT id, name FROM customers").fetchall()
-        invoices = db.execute("SELECT customer_id, total, paid FROM invoices")
+    customers, invoices = load_accounts(shop)
     return balance_answer(customers, invoices, name)
 
 

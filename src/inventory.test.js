@@ -96,3 +96,22 @@ describe("requestJson", () => {
     await expect(requestJson("/api/missing")).rejects.toThrow("Request failed (404).");
   });
 });
+
+import { formatRs, niceScale, productsToCsv } from "./inventory.js";
+
+describe("dashboard helpers", () => {
+  it("rounds chart axes to tidy steps", () => {
+    expect(niceScale(20)).toEqual({ max: 20, ticks: [0, 5, 10, 15, 20] });
+    expect(niceScale(1500)).toEqual({ max: 1500, ticks: [0, 500, 1000, 1500] });
+    expect(niceScale(0).max).toBeGreaterThan(0);
+  });
+
+  it("formats rupees with thousands separators", () => {
+    expect(formatRs(2300)).toBe("Rs 2,300");
+  });
+
+  it("exports products as CSV and quotes awkward names", () => {
+    const csv = productsToCsv([{ name: 'Oil, "Gold"', stock: 2, unit: "bottles", reorder_level: 4, status: "low_stock" }]);
+    expect(csv).toBe('Product,Stock,Unit,Reorder level,Status\n"Oil, ""Gold""",2,bottles,4,low_stock');
+  });
+});

@@ -45,7 +45,7 @@ In development, Vite serves the React app and forwards `/api` requests to the Py
 | `server.py` | Local HTTP API, request validation, and production static-file server. |
 | `chatbot.py` | Supported question phrases, product/customer name matching, and terminal chatbot. |
 | `database.py` | SQLite/MongoDB connections, inventory queries, balance calculations, and data errors. |
-| `inventory_class_demo.db` | SQLite demo database used by default. |
+| `inventory_demo_v3.db` | SQLite demo database used by default (created with sample data on first run; not committed). |
 
 ## Requirements
 
@@ -114,7 +114,7 @@ npm test                         # frontend tests (Vitest)
 py -m unittest discover tests    # Python tests
 ```
 
-The Python tests use an in-memory copy of the demo database, so they never change `inventory_class_demo.db`.
+The Python tests use an in-memory copy of the demo database, so they never change the demo database file.
 
 ## Use MongoDB instead of the demo database
 
@@ -153,6 +153,7 @@ The SQLite demo uses three tables:
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/health` | Confirms the service is running and reports the active data source. |
+| `GET` | `/api/customers` | Returns each customer's billed, paid and remaining amounts, largest balance first. |
 | `GET` | `/api/products` | Returns product names, quantities, units, reorder levels, and calculated statuses. |
 | `POST` | `/api/chat` | Accepts a JSON chat message and returns an answer plus optional follow-up state. |
 

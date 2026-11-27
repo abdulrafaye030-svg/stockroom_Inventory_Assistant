@@ -55,3 +55,34 @@ export function stockProportion(product) {
   }
   return product.stock > 0 ? 100 : 0;
 }
+
+// Round chart axes up to a tidy maximum with evenly spaced ticks (0, 5, 10, 15, 20 …).
+export function niceScale(maxValue, tickCount = 4) {
+  if (!(maxValue > 0)) return { max: tickCount, ticks: Array.from({ length: tickCount + 1 }, (_, i) => i) };
+  const rough = maxValue / tickCount;
+  const magnitude = 10 ** Math.floor(Math.log10(rough));
+  const step = Math.max(1, [1, 2, 2.5, 5, 10].map((m) => m * magnitude).find((s) => s >= rough));
+  const max = Math.ceil(maxValue / step) * step;
+  const ticks = [];
+  for (let value = 0; value <= max + step / 2; value += step) ticks.push(value);
+  return { max, ticks };
+}
+
+export function formatNumber(value) {
+  return Math.round(value).toLocaleString("en-US");
+}
+
+export function formatRs(value) {
+  return `Rs ${formatNumber(value)}`;
+}
+
+// Products as CSV text for the Export button. Quotes any field containing a comma, quote or newline.
+export function productsToCsv(products) {
+  const cell = (value) => {
+    const text = String(value ?? "");
+    return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  };
+  const header = ["Product", "Stock", "Unit", "Reorder level", "Status"];
+  const rows = products.map((p) => [p.name, p.stock, p.unit, p.reorder_level, p.status]);
+  return [header, ...rows].map((row) => row.map(cell).join(",")).join("\n");
+}
