@@ -22,7 +22,9 @@ export async function requestJson(url, options) {
     throw new Error(`The inventory service is unavailable (${response.status}). Make sure \`py server.py\` is running.`);
   }
   if (!response.ok) {
-    throw new Error(payload.error || `Request failed (${response.status}).`);
+    const error = new Error(payload.error || `Request failed (${response.status}).`);
+    error.status = response.status;
+    throw error;
   }
   return payload;
 }

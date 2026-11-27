@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Icon from "./Icon.jsx";
+import LoginPage from "./LoginPage.jsx";
 import { BalanceBars, StatusSplit, StockBars, TickGauge } from "./charts.jsx";
 import {
   filterProducts, formatNumber, formatRs, messageId, productsToCsv, requestJson, stockProportion, summarizeInventory,
@@ -439,7 +440,7 @@ function CustomersPage({ customers, owing, totalDue, hasData, onAsk }) {
 
 /* ---------- App ---------- */
 
-export default function App() {
+function Stockroom({ user, onSignOut, onSessionExpired }) {
   const [view, setView] = useState(viewFromHash);
   const [products, setProducts] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -484,6 +485,7 @@ export default function App() {
       setCustomers(customerData.customers);
       setSource(health.source);
     } catch (requestError) {
+      if (requestError.status === 401) return onSessionExpired();
       setError(requestError.message);
     } finally {
       setLoading(false);
@@ -531,6 +533,7 @@ export default function App() {
       setMessages((current) => [...current, { id: messageId(), role: "assistant", text: response.answer }]);
       setWaitingFor(response.waitingFor);
     } catch (requestError) {
+      if (requestError.status === 401) return onSessionExpired();
       setMessages((current) => [
         ...current,
         { id: messageId(), role: "assistant", text: `I couldn’t complete that request. ${requestError.message}` },
@@ -582,6 +585,10 @@ export default function App() {
                 <Icon name="download" size={16} />Export
               </button>
             )}
+            <button className="button" onClick={onSignOut} aria-label={`Sign out ${user}`} title={`Signed in as ${user}`}>
+              <Icon name="logout" size={16} />
+              <span className="hide-sm">Sign out</span>
+            </button>
           </div>
         </header>
 
@@ -626,4 +633,41 @@ export default function App() {
       <MobileNav view={view} onNavigate={navigate} />
     </div>
   );
+}
+
+/* ---------- Sign-in gate ---------- */
+
+export default function App() {
+  // undefined = still checking the session cookie, null = signed out, string = signed-in username.
+  const [user, setUser] = useState(undefined);
+  const [notice, setNotice] = useState("");
+
+  useEffect(() => {
+    requestJson("/api/session")
+      .then((session) => setUser(session.authenticated ? session.user : null))
+      .catch(() => setUser(null));
+  }, []);
+
+  async function signOut() {
+    try {
+      await requestJson("/api/logout", { method: "POST" });
+    } catch {
+      // The cookie expires on its own; show the sign-in form either way.
+    }
+    setNotice("");
+    setUser(null);
+  }
+
+  function sessionExpired() {
+    setNotice("Your session has ended. Please sign in again.");
+    setUser(null);
+  }
+
+  if (user === undefined) {
+    return <div className="login-page"><p className="chart-empty">Loading…</p></div>;
+  }
+  if (!user) {
+    return <LoginPage notice={notice} onSignedIn={(name) => { setNotice(""); setUser(name); }} />;
+  }
+  return <Stockroom user={user} onSignOut={signOut} onSessionExpired={sessionExpired} />;
 }

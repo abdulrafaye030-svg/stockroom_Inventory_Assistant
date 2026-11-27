@@ -1,11 +1,13 @@
 """Local API and production static-file server for the Stockroom React app."""
 import argparse
 import json
+import os
 import sys
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
+import auth
 from chatbot import get_answer, match_question, small_talk
 from database import clean, customer_balances, describe_error, mongo_rows, open_shop
 
@@ -69,17 +71,32 @@ class StockroomHandler(SimpleHTTPRequestHandler):
     def shop(self):
         return self.server.shop
 
-    def _send_json(self, status, payload):
+    def _send_json(self, status, payload, headers=()):
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        for name, value in headers:
+            self.send_header(name, value)
         self.end_headers()
         self.wfile.write(body)
 
     def _api_error(self, error, status=500):
         self._send_json(status, {"error": str(error)})
+
+    def _session_user(self):
+        return auth.read_token(auth.token_from_cookie_header(self.headers.get("Cookie")))
+
+    def _secure_request(self):
+        return bool(os.environ.get("VERCEL")) or self.headers.get("X-Forwarded-Proto") == "https"
+
+    def _require_user(self):
+        """Return the signed-in username, or send a 401 and return None."""
+        user = self._session_user()
+        if not user:
+            self._api_error("Please sign in to continue.", 401)
+        return user
 
     def do_GET(self):
         request = urlparse(self.path)
@@ -87,6 +104,11 @@ class StockroomHandler(SimpleHTTPRequestHandler):
             if request.path == "/api/health":
                 source = "MongoDB" if self.shop[1] else "SQLite demo"
                 self._send_json(200, {"ok": True, "source": source})
+            elif request.path == "/api/session":
+                user = self._session_user()
+                self._send_json(200, {"authenticated": bool(user), "user": user})
+            elif not self._require_user():
+                return
             elif request.path == "/api/customers":
                 try:
                     self._send_json(200, {"customers": customer_balances(self.shop)})
@@ -114,12 +136,8 @@ class StockroomHandler(SimpleHTTPRequestHandler):
             self.path = "/index.html"
         super().do_GET()
 
-    def do_POST(self):
-        request = urlparse(self.path)
-        if request.path != "/api/chat":
-            self._api_error("API endpoint not found.", 404)
-            return
-
+    def _read_json(self):
+        """Return the request's JSON object, or send an error and return None."""
         try:
             content_length = int(self.headers.get("Content-Length", "0"))
         except ValueError:
@@ -127,20 +145,53 @@ class StockroomHandler(SimpleHTTPRequestHandler):
             return
         if content_length <= 0:
             self._api_error("A JSON request body is required.", 400)
-            return
+            return None
         if content_length > MAX_REQUEST_BYTES:
             self._api_error("Message is too long.", 413)
-            return
+            return None
 
         try:
             payload = json.loads(self.rfile.read(content_length).decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError):
             self._api_error("Request body must be valid JSON.", 400)
-            return
+            return None
         if not isinstance(payload, dict):
             self._api_error("Request body must be a JSON object.", 400)
-            return
+            return None
+        return payload
 
+    def do_POST(self):
+        request = urlparse(self.path)
+        if request.path == "/api/login":
+            self._login()
+        elif request.path == "/api/logout":
+            cookie = auth.session_cookie(None, self._secure_request())
+            self._send_json(200, {"authenticated": False}, [("Set-Cookie", cookie)])
+        elif request.path == "/api/chat":
+            if self._require_user():
+                self._chat()
+        else:
+            self._api_error("API endpoint not found.", 404)
+
+    def _login(self):
+        payload = self._read_json()
+        if payload is None:
+            return
+        username, password = payload.get("username"), payload.get("password")
+        if not isinstance(username, str) or not isinstance(password, str) or not username.strip() or not password:
+            self._api_error("Enter your username and password.", 400)
+            return
+        if not auth.check_credentials(username, password):
+            self._api_error("Incorrect username or password.", 401)
+            return
+        user = auth.configured_credentials()[0]
+        cookie = auth.session_cookie(auth.create_token(user), self._secure_request())
+        self._send_json(200, {"authenticated": True, "user": user}, [("Set-Cookie", cookie)])
+
+    def _chat(self):
+        payload = self._read_json()
+        if payload is None:
+            return
         text = payload.get("message")
         if not isinstance(text, str) or not text.strip():
             self._api_error("Enter a question before sending.", 400)

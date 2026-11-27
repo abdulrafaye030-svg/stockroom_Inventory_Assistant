@@ -43,6 +43,8 @@ In development, Vite serves the React app and forwards `/api` requests to the Py
 | `vite.config.js` | Vite configuration and development proxy for `/api` to `127.0.0.1:8000`. |
 | `package.json` / `package-lock.json` | Frontend scripts and pinned JavaScript dependencies. |
 | `server.py` | Local HTTP API, request validation, and production static-file server. |
+| `auth.py` | Sign-in credential check and signed session cookies. |
+| `src/LoginPage.jsx` | Sign-in form shown until the user is signed in. |
 | `chatbot.py` | Supported question phrases, product/customer name matching, and terminal chatbot. |
 | `database.py` | SQLite/MongoDB connections, inventory queries, balance calculations, and data errors. |
 | `inventory_demo_v3.db` | SQLite demo database used by default (created with sample data on first run; not committed). |
@@ -89,11 +91,30 @@ py server.py
 
 Vite writes the production frontend to `dist/`. The Python service detects that build and serves the complete app at <http://127.0.0.1:8000>.
 
+## Sign in
+
+The app opens on a sign-in form. Product, customer and chat data are only returned to a signed-in session.
+
+- **Default account:** username `rafay`, password `rafay1234`. This is used only when no credentials are configured.
+- **Your own account:** set `STOCKROOM_USERNAME` and `STOCKROOM_PASSWORD` before starting the server (or in your host's environment variables).
+- **Signing key:** set `STOCKROOM_SECRET` to a long random string in production. Without it the key is derived from the password, so changing the password signs everyone out.
+
+Sessions last 12 hours and are kept in an HttpOnly cookie (marked `Secure` on Vercel or behind HTTPS). There is one account; the username is not case-sensitive, the password is.
+
+```powershell
+$env:STOCKROOM_USERNAME = 'owner'
+$env:STOCKROOM_PASSWORD = 'choose-a-strong-password'
+$env:STOCKROOM_SECRET = 'a-long-random-string'
+py server.py
+```
+
+> **Before deploying publicly, set these variables.** Otherwise anyone can sign in with the default account above.
+
 ## Deploy online
 
 ### Vercel
 
-Import the GitHub repository at [vercel.com/new](https://vercel.com/new) and deploy with the default settings (`vercel.json` selects Vite and `dist/`). Vercel serves the React build as static files and runs `api/health.py`, `api/products.py` and `api/chat.py` as Python functions; each reuses `server.py`. On Vercel the SQLite demo database is created in the temporary folder, so it is reset whenever a function restarts.
+Import the GitHub repository at [vercel.com/new](https://vercel.com/new) and deploy with the default settings (`vercel.json` selects Vite and `dist/`). Vercel serves the React build as static files and runs the files in `api/` as Python functions; each reuses `server.py`. Add `STOCKROOM_USERNAME`, `STOCKROOM_PASSWORD` and `STOCKROOM_SECRET` under **Settings → Environment Variables** (see [Sign in](#sign-in)). On Vercel the SQLite demo database is created in the temporary folder, so it is reset whenever a function restarts.
 
 ### Docker (Render and other hosts)
 
@@ -153,9 +174,14 @@ The SQLite demo uses three tables:
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/health` | Confirms the service is running and reports the active data source. |
+| `POST` | `/api/login` | Accepts `{"username", "password"}`; on success sets the session cookie. Wrong details return `401`. |
+| `POST` | `/api/logout` | Clears the session cookie. |
+| `GET` | `/api/session` | Returns `{"authenticated", "user"}` for the current cookie. |
 | `GET` | `/api/customers` | Returns each customer's billed, paid and remaining amounts, largest balance first. |
 | `GET` | `/api/products` | Returns product names, quantities, units, reorder levels, and calculated statuses. |
 | `POST` | `/api/chat` | Accepts a JSON chat message and returns an answer plus optional follow-up state. |
+
+`/api/customers`, `/api/products` and `/api/chat` require a signed-in session and return `401` without one.
 
 Example chat request:
 
