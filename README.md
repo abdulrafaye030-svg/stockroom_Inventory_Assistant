@@ -44,9 +44,10 @@ In development, Vite serves the React app and forwards `/api` requests to the Py
 | `package.json` / `package-lock.json` | Frontend scripts and pinned JavaScript dependencies. |
 | `server.py` | Local HTTP API, request validation, and production static-file server. |
 | `auth.py` | Sign-in credential check and signed session cookies. |
+| `accounts.py` | Registered accounts: validation, salted password hashing and storage. |
 | `envfile.py` | Loads settings from a local `.env` file. |
 | `.env.example` | Template for `.env` (copy it and fill in your values). |
-| `src/LoginPage.jsx` | Sign-in form shown until the user is signed in. |
+| `src/LoginPage.jsx` | Sign-in and registration form shown until the user is signed in. |
 | `chatbot.py` | Supported question phrases, product/customer name matching, and terminal chatbot. |
 | `database.py` | SQLite/MongoDB connections, inventory queries, balance calculations, and data errors. |
 | `inventory_demo_v3.db` | SQLite demo database used by default (created with sample data on first run; not committed). |
@@ -97,13 +98,14 @@ Vite writes the production frontend to `dist/`. The Python service detects that 
 
 The app opens on a sign-in form. Product, customer and chat data are only returned to a signed-in session.
 
-The account is set with three settings. Nothing is built in: if the username or password is missing, nobody can sign in.
+There are two kinds of account: one admin account set in `.env`, and accounts people create themselves with **Create an account** on the sign-in page. Nothing is built in.
 
 | Setting | Purpose |
 | --- | --- |
-| `STOCKROOM_USERNAME` | Username for the one account (not case-sensitive). |
+| `STOCKROOM_USERNAME` | Username for the admin account (not case-sensitive). Nobody can register this name. |
 | `STOCKROOM_PASSWORD` | Its password (case-sensitive). |
-| `STOCKROOM_SECRET` | Long random string that signs session cookies. Without it the key is derived from the password, so changing the password signs everyone out. |
+| `STOCKROOM_SECRET` | Long random string that signs session cookies. Without it the key is derived from the admin password, so changing the password signs everyone out. With neither set, nobody can sign in or register. |
+| `STOCKROOM_ALLOW_SIGNUP` | `true` (default) shows **Create an account**; `false` turns registration off. Anyone who registers can see all shop data, so turn it off on a public site you do not want open to everyone. |
 
 **Locally**, put them in a `.env` file in the project folder. The server reads it at startup. `.env` is ignored by git and Docker, so it is never committed.
 
@@ -121,6 +123,12 @@ STOCKROOM_SECRET=paste-output-of: py -c "import secrets; print(secrets.token_hex
 **On Vercel or another host**, add the same names in the host's environment variable settings. Values set there take priority over `.env`.
 
 Sessions last 12 hours and are kept in an HttpOnly cookie (marked `Secure` on Vercel or behind HTTPS).
+
+### Registration
+
+New usernames are 3 to 32 letters, numbers, dots, dashes or underscores, and are not case-sensitive. Passwords need at least 8 characters. Passwords are never stored: each is hashed with PBKDF2-SHA256 and its own random salt. Accounts are saved in the shop database, in a `users` table (SQLite) or a `users` collection (MongoDB).
+
+Locally the accounts stay in the demo database file (`inventory_demo_v3.db`). On Vercel and in Docker that file is temporary, so accounts registered there are lost when the instance restarts. Use MongoDB to keep them.
 
 ## Deploy online
 
@@ -187,8 +195,9 @@ The SQLite demo uses three tables:
 | --- | --- | --- |
 | `GET` | `/api/health` | Confirms the service is running and reports the active data source. |
 | `POST` | `/api/login` | Accepts `{"username", "password"}`; on success sets the session cookie. Wrong details return `401`. |
+| `POST` | `/api/register` | Accepts `{"username", "password"}`, creates the account and sets the session cookie (`201`). Invalid details return `400`, a taken name `409`, and `403` when registration is off. |
 | `POST` | `/api/logout` | Clears the session cookie. |
-| `GET` | `/api/session` | Returns `{"authenticated", "user"}` for the current cookie. |
+| `GET` | `/api/session` | Returns `{"authenticated", "user", "signupEnabled"}` for the current cookie. |
 | `GET` | `/api/customers` | Returns each customer's billed, paid and remaining amounts, largest balance first. |
 | `GET` | `/api/products` | Returns product names, quantities, units, reorder levels, and calculated statuses. |
 | `POST` | `/api/chat` | Accepts a JSON chat message and returns an answer plus optional follow-up state. |

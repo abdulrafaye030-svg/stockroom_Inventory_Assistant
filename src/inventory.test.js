@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { filterProducts, messageId, requestJson, stockProportion, summarizeInventory } from "./inventory.js";
+import { filterProducts, messageId, registrationError, requestJson, stockProportion, summarizeInventory } from "./inventory.js";
 
 // Matches the SQLite demo data, plus a negative-stock row.
 const products = [
@@ -113,5 +113,19 @@ describe("dashboard helpers", () => {
   it("exports products as CSV and quotes awkward names", () => {
     const csv = productsToCsv([{ name: 'Oil, "Gold"', stock: 2, unit: "bottles", reorder_level: 4, status: "low_stock" }]);
     expect(csv).toBe('Product,Stock,Unit,Reorder level,Status\n"Oil, ""Gold""",2,bottles,4,low_stock');
+  });
+});
+
+describe("registrationError", () => {
+  it("accepts a valid new account", () => {
+    expect(registrationError(" rafay_1 ", "secret-123", "secret-123")).toBe("");
+  });
+
+  it("explains what is wrong", () => {
+    expect(registrationError("ab", "secret-123", "secret-123")).toMatch(/3 to 32/);
+    expect(registrationError("has space", "secret-123", "secret-123")).toMatch(/3 to 32/);
+    expect(registrationError("rafay", "short", "short")).toMatch(/at least 8/);
+    expect(registrationError("password1", "Password1", "Password1")).toMatch(/different/);
+    expect(registrationError("rafay", "secret-123", "secret-124")).toMatch(/do not match/);
   });
 });

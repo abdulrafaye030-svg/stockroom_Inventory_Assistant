@@ -29,6 +29,21 @@ export async function requestJson(url, options) {
   return payload;
 }
 
+// Same rules as accounts.validation_error on the server, checked before sending the form.
+export function registrationError(username, password, confirm) {
+  const name = username.trim();
+  if (!/^[A-Za-z0-9_.-]{3,32}$/.test(name)) {
+    return "Usernames are 3 to 32 characters: letters, numbers, dots, dashes or underscores.";
+  }
+  if (password.length < 8) return "Use a password of at least 8 characters.";
+  if (password.length > 256) return "Passwords can be at most 256 characters.";
+  if (password.trim().toLowerCase() === name.toLowerCase()) {
+    return "Choose a password that is different from your username.";
+  }
+  if (password !== confirm) return "The passwords do not match.";
+  return "";
+}
+
 export function summarizeInventory(products) {
   return products.reduce((summary, product) => {
     summary.total_products += 1;

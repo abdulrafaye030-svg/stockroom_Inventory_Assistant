@@ -1,10 +1,11 @@
 """Sign-in for the Stockroom API: credential checks and signed session cookies.
 
-The account comes from STOCKROOM_USERNAME / STOCKROOM_PASSWORD, set in the
-environment or in a local .env file (see envfile.py and .env.example). If either is
-missing, every sign-in is refused. Sessions are stateless HMAC-signed tokens, so they
-also work on Vercel, where each request may run in a fresh process. Set STOCKROOM_SECRET
-to a long random string; without it the key is derived from the password.
+The admin account comes from STOCKROOM_USERNAME / STOCKROOM_PASSWORD, set in the
+environment or in a local .env file (see envfile.py and .env.example). Other people can
+register their own accounts (see accounts.py). Sessions are stateless HMAC-signed tokens,
+so they also work on Vercel, where each request may run in a fresh process. Set
+STOCKROOM_SECRET to a long random string; without it the key is derived from the admin
+password, and with neither set nobody can sign in.
 """
 import base64
 import hashlib
@@ -37,6 +38,17 @@ def _secret():
     if username is None:
         return None
     return hashlib.sha256(f"stockroom:{username}:{password}".encode("utf-8")).digest()
+
+
+def can_sign_sessions():
+    """True when there is a key to sign session cookies with (STOCKROOM_SECRET or the .env account)."""
+    return _secret() is not None
+
+
+def is_admin_username(username):
+    """True if the name belongs to the .env account, so nobody can register it."""
+    expected_user = configured_credentials()[0]
+    return expected_user is not None and username.strip().lower() == expected_user.lower()
 
 
 def check_credentials(username, password):

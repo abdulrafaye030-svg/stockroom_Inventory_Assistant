@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import Icon from "./Icon.jsx";
 import { requestJson } from "./inventory.js";
 
-export default function LoginPage({ onSignedIn, notice = "" }) {
+export default function LoginPage({ onSignedIn, notice = "", signupEnabled = false, onShowRegister }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -93,6 +93,15 @@ export default function LoginPage({ onSignedIn, notice = "" }) {
         <button type="submit" className="button button-primary login-submit" disabled={submitting}>
           {submitting ? "Signing in…" : "Sign in"}
         </button>
+
+        {signupEnabled && onShowRegister && (
+          <p className="login-switch">
+            New here?{" "}
+            <button type="button" className="link-button" onClick={onShowRegister} disabled={submitting}>
+              Create an account
+            </button>
+          </p>
+        )}
       </form>
     </main>
   );

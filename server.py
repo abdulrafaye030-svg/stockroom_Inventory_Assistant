@@ -11,6 +11,7 @@ from envfile import load_env_file
 
 load_env_file()  # Read .env before anything looks at os.environ.
 
+import accounts  # noqa: E402
 import auth  # noqa: E402
 from chatbot import get_answer, match_question, small_talk  # noqa: E402
 from database import clean, customer_balances, describe_error, mongo_rows, open_shop  # noqa: E402
@@ -110,7 +111,9 @@ class StockroomHandler(SimpleHTTPRequestHandler):
                 self._send_json(200, {"ok": True, "source": source})
             elif request.path == "/api/session":
                 user = self._session_user()
-                self._send_json(200, {"authenticated": bool(user), "user": user})
+                self._send_json(200, {
+                    "authenticated": bool(user), "user": user, "signupEnabled": accounts.signup_enabled(),
+                })
             elif not self._require_user():
                 return
             elif request.path == "/api/customers":
@@ -168,6 +171,8 @@ class StockroomHandler(SimpleHTTPRequestHandler):
         request = urlparse(self.path)
         if request.path == "/api/login":
             self._login()
+        elif request.path == "/api/register":
+            self._register()
         elif request.path == "/api/logout":
             cookie = auth.session_cookie(None, self._secure_request())
             self._send_json(200, {"authenticated": False}, [("Set-Cookie", cookie)])
@@ -177,26 +182,72 @@ class StockroomHandler(SimpleHTTPRequestHandler):
         else:
             self._api_error("API endpoint not found.", 404)
 
-    def _login(self):
+    def _read_credentials(self):
+        """Return (username, password) from the JSON body, or send an error and return None."""
         payload = self._read_json()
         if payload is None:
-            return
+            return None
         username, password = payload.get("username"), payload.get("password")
         if not isinstance(username, str) or not isinstance(password, str) or not username.strip() or not password:
             self._api_error("Enter your username and password.", 400)
-            return
-        if not auth.is_configured():
+            return None
+        if not auth.can_sign_sessions():
             self._api_error(
-                "Sign-in is not set up. Set STOCKROOM_USERNAME and STOCKROOM_PASSWORD in .env or the host's settings.",
+                "Sign-in is not set up. Set STOCKROOM_SECRET (or STOCKROOM_USERNAME and STOCKROOM_PASSWORD) "
+                "in .env or the host's settings.",
                 503,
             )
+            return None
+        return username, password
+
+    def _start_session(self, user, status=200):
+        cookie = auth.session_cookie(auth.create_token(user), self._secure_request())
+        self._send_json(status, {"authenticated": True, "user": user}, [("Set-Cookie", cookie)])
+
+    def _login(self):
+        credentials = self._read_credentials()
+        if credentials is None:
             return
-        if not auth.check_credentials(username, password):
+        username, password = credentials
+        if auth.check_credentials(username, password):
+            self._start_session(auth.configured_credentials()[0])
+            return
+        if len(password) > accounts.MAX_PASSWORD:
             self._api_error("Incorrect username or password.", 401)
             return
-        user = auth.configured_credentials()[0]
-        cookie = auth.session_cookie(auth.create_token(user), self._secure_request())
-        self._send_json(200, {"authenticated": True, "user": user}, [("Set-Cookie", cookie)])
+        try:
+            user = accounts.authenticate(self.shop, username, password)
+        except Exception as error:
+            self._api_error(describe_error(error, self.shop[1]))
+            return
+        if not user:
+            self._api_error("Incorrect username or password.", 401)
+            return
+        self._start_session(user)
+
+    def _register(self):
+        if not accounts.signup_enabled():
+            self._api_error("Registration is turned off. Ask the shop owner for an account.", 403)
+            return
+        credentials = self._read_credentials()
+        if credentials is None:
+            return
+        username, password = credentials
+        if problem := accounts.validation_error(username, password):
+            self._api_error(problem, 400)
+            return
+        if auth.is_admin_username(username):
+            self._api_error("That username is taken. Choose another one.", 409)
+            return
+        try:
+            user = accounts.create_user(self.shop, username, password)
+        except accounts.AccountExists:
+            self._api_error("That username is taken. Choose another one.", 409)
+            return
+        except Exception as error:
+            self._api_error(describe_error(error, self.shop[1]))
+            return
+        self._start_session(user, 201)
 
     def _chat(self):
         payload = self._read_json()
@@ -255,9 +306,9 @@ def main():
             server = HTTPServer((args.host, args.port), StockroomHandler)
             server.shop = shop
             print(f"Stockroom API listening on http://{args.host}:{args.port}")
-            if not auth.is_configured():
-                print("Warning: STOCKROOM_USERNAME / STOCKROOM_PASSWORD are not set, so nobody can sign in. "
-                      "Copy .env.example to .env and fill it in.", file=sys.stderr)
+            if not auth.can_sign_sessions():
+                print("Warning: neither STOCKROOM_SECRET nor STOCKROOM_USERNAME / STOCKROOM_PASSWORD is set, "
+                      "so nobody can sign in or register. Copy .env.example to .env and fill it in.", file=sys.stderr)
             if (BUILD_DIR / "index.html").is_file():
                 print("Serving the built React app.")
             else:

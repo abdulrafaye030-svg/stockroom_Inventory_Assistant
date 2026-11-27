@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Icon from "./Icon.jsx";
 import LoginPage from "./LoginPage.jsx";
+import RegisterPage from "./RegisterPage.jsx";
 import { BalanceBars, StatusSplit, StockBars, TickGauge } from "./charts.jsx";
 import {
   filterProducts, formatNumber, formatRs, messageId, productsToCsv, requestJson, stockProportion, summarizeInventory,
@@ -641,10 +642,16 @@ export default function App() {
   // undefined = still checking the session cookie, null = signed out, string = signed-in username.
   const [user, setUser] = useState(undefined);
   const [notice, setNotice] = useState("");
+  const [signupEnabled, setSignupEnabled] = useState(false);
+  // Which form to show while signed out: "signin" or "register".
+  const [screen, setScreen] = useState("signin");
 
   useEffect(() => {
     requestJson("/api/session")
-      .then((session) => setUser(session.authenticated ? session.user : null))
+      .then((session) => {
+        setSignupEnabled(Boolean(session.signupEnabled));
+        setUser(session.authenticated ? session.user : null);
+      })
       .catch(() => setUser(null));
   }, []);
 
@@ -667,7 +674,18 @@ export default function App() {
     return <div className="login-page"><p className="chart-empty">Loading…</p></div>;
   }
   if (!user) {
-    return <LoginPage notice={notice} onSignedIn={(name) => { setNotice(""); setUser(name); }} />;
+    const signedIn = (name) => { setNotice(""); setScreen("signin"); setUser(name); };
+    if (screen === "register" && signupEnabled) {
+      return <RegisterPage onSignedIn={signedIn} onShowSignIn={() => setScreen("signin")} />;
+    }
+    return (
+      <LoginPage
+        notice={notice}
+        signupEnabled={signupEnabled}
+        onSignedIn={signedIn}
+        onShowRegister={() => { setNotice(""); setScreen("register"); }}
+      />
+    );
   }
   return <Stockroom user={user} onSignOut={signOut} onSessionExpired={sessionExpired} />;
 }
