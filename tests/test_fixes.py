@@ -8,7 +8,7 @@ import unittest
 from unittest import mock
 
 import database
-from chatbot import goodbye_text, help_text, small_talk
+from chatbot import goodbye_text, help_text, match_question, small_talk
 from server import chat_reply, inventory_products
 
 
@@ -141,3 +141,36 @@ class SmallTalkTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FlexiblePhrasingTests(unittest.TestCase):
+    def intent(self, text):
+        return match_question(database.clean(text))
+
+    def test_reworded_questions_find_the_right_answer(self):
+        cases = {
+            "who owes us money?": "dues",
+            "any unpaid balances": "dues",
+            "what's out of stock": "empty",
+            "which items are not available": "empty",
+            "what is running low": "low",
+            "what do I need to reorder": "low",
+            "show me the stock": "available",
+        }
+        for text, intent in cases.items():
+            self.assertEqual(self.intent(text), (intent, None), text)
+
+    def test_existing_phrases_and_names_still_win(self):
+        self.assertEqual(self.intent("how much does Ali owe?"), ("balance", "ali"))
+        self.assertEqual(self.intent("stock of sugar"), ("product", "sugar"))
+        self.assertEqual(self.intent("check balance"), ("balance", None))
+
+    def test_unrelated_text_is_still_not_understood(self):
+        self.assertEqual(self.intent("what is the weather"), (None, None))
+
+    def test_web_chat_answers_reworded_dues_question(self):
+        shop = make_shop()
+        self.addCleanup(shop[0].close)
+        answer, _ = chat_reply(shop, "who owes us money?")
+        self.assertIn("Imran", answer)
+        self.assertIn("Ali", answer)

@@ -71,7 +71,26 @@ def match_question(message):
             matches = difflib.get_close_matches(word, vocabulary, n=1, cutoff=0.84)
             if matches:
                 words[index] = matches[0]
-    return questions.get(" ".join(words)), None
+    return questions.get(" ".join(words)) or keyword_intent(words), None
+
+
+# Fallback for questions phrased differently, e.g. "who owes us money?". Checked in this order,
+# so "not available" counts as out of stock before "available" can match.
+keyword_rules = [
+    ("empty", {"out", "unavailable", "khatam", "finished"}, ("not available", "sold out", "run out", "ran out")),
+    ("low", {"low", "reorder", "restock", "short", "kam"}, ("running low",)),
+    ("dues", {"owe", "owes", "owed", "owing", "dues", "due", "udhaar", "udhar", "baqi", "debt", "money",
+              "balance", "balances", "pending", "unpaid"}, ()),
+    ("available", {"available", "stock", "inventory", "products", "items", "saman"}, ()),
+]
+
+
+def keyword_intent(words):
+    text = " ".join(words)
+    for intent, keywords, phrases in keyword_rules:
+        if keywords & set(words) or any(phrase in text for phrase in phrases):
+            return intent
+    return None
 
 
 if __name__ == "__main__":
